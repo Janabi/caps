@@ -40,9 +40,9 @@
 - faker
 
 ### How to start the server
-- node caps/caps.js
-- node driver/driver.js
-- node vandor/vandor.js
+- node caps/caps-tcp.js
+- node driver/driver-tcp.js
+- node vandor/vandor-tcp.js
 
 ### UML
 ![UML lab 17](./uml-lab-17.png)
