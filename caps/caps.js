@@ -1,63 +1,64 @@
 'use strict';
 
-const generateUniqueId = require('generate-unique-id'); 
+require('dotenv').config();
+let port = process.env.PORT || 3030
+const io = require('socket.io')(port);
+capsNamespace(io);
+io.on('connection', (socket) => {
+  console.log('Welcome to Global Connection ! ');
+  console.log('Default Namespace');
 
-const randomID = generateUniqueId({
-    length: 5,
-    useLetters: false
+  socket.on('error', (err) => {
+    io.emit('error', err);
+  });
+
+  socket.on('action', (payload) => {
+    io.emit('action', payload);
+  });
 });
 
-let net = require('net');
-const PORT = 8080;
-const server = net.createServer();
+function capsNamespace (io){
+  const caps = io.of('/caps');
+  let currentRoom = '';
+  caps.on('connection', (socket) => {
+    console.log('Caps Namespace');
+    socket.on('join', (room) => {
+      socket.leave(currentRoom);
+      socket.join(room);
+      currentRoom = room;
 
-server.listen(PORT, () => console.log(`Your are listening ${PORT}`))
+      io.emit('action', `Someone Joined Room : ${room}`);
+      caps.to(`${socket.id}`).emit('joined', room);
+    });
 
-let socketPool = {};
+    socket.on('pickup', (payload) => {
+      let obj = {
+        event: 'pickup',
+        time: new Date().toLocaleTimeString(),
+        payload
+      }
+      console.log('EVENT ', obj);
+      caps.emit('pickup', payload);
+    });
 
-server.on('connection', (socket)=> {
-    console.log("SERVER GOT A CONNECTION!");
-    
-    const id = `Socket-${randomID}`;
-    socketPool[id] = socket;
-    // client sends data
-    socket.on('data', (buffer)=> dispatchEvent(buffer));
-    socket.on('error', (e)=> console.log('SOCKET ERROR', e));
-    socket.on('end', (e)=> delete socketPool[id]);
-});
+    socket.on('in-transit', (payload) => {
+      let obj = {
+        event: 'in-transit',
+        time: new Date().toLocaleTimeString(),
+        payload
+      }
+      console.log('EVENT ', obj);
+      caps.to(currentRoom).emit('in-transit', payload);
+    });
 
-
-
-function dispatchEvent(buffer) {
-    let msg = JSON.parse(buffer.toString().trim());
-    
-    broadcast(msg)
-}
-function broadcast(msg) {
-    let payload = JSON.stringify(msg);
-    for (let socket in socketPool) {
-        socketPool[socket].write(payload);
-    }
-    if (msg.event=== 'pickup') consoleLogIt(msg.event, msg.payload)
-    if (msg.event=== 'in-transit') consoleLogIt(msg.event, msg.payload)
-    if (msg.event=== 'delivered') consoleLogIt(msg.event, msg.payload)
-}
-
-
-// const eventEmitter = require('./events');
-
-// eventEmitter.on('pickup', (payload, id)=> consoleLogIt('pickup', payload, id));
-// eventEmitter.on('in-transit', (payload, id)=> consoleLogIt('in-transit', payload, id));
-// eventEmitter.on('delivered', payload=> thankYou(payload));
-
-function consoleLogIt(event, payload) {
-    let time = new Date();
-    time = time.toLocaleString();
-    console.log('EVENT',{event, time, payload})
-}
-
-// function thankYou(payload) {
-//     console.log(`VENDOR: Thank you for delivering ${payload}`);
-// }
-
-// module.exports = eventEmitter;
+    socket.on('delivered', (payload) => {
+      let obj = {
+        event: 'delivered',
+        time: new Date().toLocaleTimeString(),
+        payload
+      }
+      console.log('EVENT ', obj);
+      caps.to(currentRoom).emit('delivered', payload);
+    });
+  });
+};
