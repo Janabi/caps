@@ -1,53 +1,35 @@
 'use strict';
 
 require('dotenv').config();
-// let eventEmitter = require('./events')
-let net = require('net');
-let faker = require('faker');
+const io = require('socket.io-client');
+const host = process.env.HOST || 'localhost';
+const port = process.env.PORT || 3030;
+const faker = require('faker');
+const caps = io.connect(`http://localhost:3030/caps`);
+const STORE_NAME = `1-206-flowers`;
+let channel = STORE_NAME;
+console.log(channel);
+caps.emit('join', channel);
 
-let storeName = process.env.STORE || '1-206-flowers';
-let client = new net.Socket();
-const HOST = process.env.HOST || 'localhost';
-const PORT = 8080;
-
-client.connect(PORT, HOST, ()=>{
-    console.log("VANDOR CONNECT MSG");
-
-    client.on('data', data=>{
-        // console.log("The Obj>>>> ", data)
-        const obj = JSON.parse(data);
-        if (data.event === 'delivered') console.log(`VANDOR: thank you for delivering ${obj.payload.orderID}`)
-    })
-    setInterval(()=>{
-        let payload = {
-            store: storeName,
-            orderID: faker.random.uuid(),
-            customer: faker.name.findName(),
-            address: faker.address.city() + ', ' + faker.address.stateAbbr()
-        }
-        let msg = {
-            event: 'pickup',
-            payload
-        }
-    
-        let stringfiedMsg = JSON.stringify(msg);
-        client.write(stringfiedMsg);
-        client.on('error', (err)=> console.log("VENDOR ERROR ",err))
-        client.on('close', ()=> console.log("VANDOR connection CLosed"));
-    }, 5000)
-})
+caps.on('joined', (joinedChannel) => {
+  console.log(`Joined Room: ${joinedChannel}`);
+  channel = joinedChannel;
+});
 
 
-// let simulator = () =>{
-//     let obj = new Object();
-//     obj.store = storeName;
-//     obj.orderID = faker.random.uuid();
-//     obj.customer = faker.name.findName();
-//     obj.address = faker.address.city() + ', ' + faker.address.stateAbbr();
-//     eventEmitter.emit('pickup', obj, obj.orderID);
-//     return obj;
-// }
+caps.on('delivered', (payload) => {
+  console.log(`Thank you for delivering ${payload.orderId}`);
+});
 
-// setInterval(simulator, 5000);
 
-// module.exports = simulator;
+const generateOrder = () => {
+  let payload = {
+      storeName: STORE_NAME,
+      orderId: faker.random.uuid(),
+      customerName: faker.name.findName(),
+      address: `${faker.address.city()}, ${faker.address.stateAbbr()}`,
+  };
+  caps.emit('pickup' ,payload);
+};
+
+setInterval(generateOrder, 5000);
